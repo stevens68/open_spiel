@@ -61,27 +61,27 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 
 TwixTState::TwixTState(std::shared_ptr<const Game> game) : State(game) {
   const TwixTGame &parent_game = static_cast<const TwixTGame &>(*game);
-  mBoard = Board(parent_game.getBoardSize(), parent_game.getAnsiColorOutput());
+  board_ = Board(parent_game.GetBoardSize(), parent_game.GetAnsiColorOutput());
 }
 
 std::string TwixTState::ActionToString(open_spiel::Player player,
                                        Action action) const {
-  Move move = mBoard.actionToMove(player, action);
+  Move move = board_.ActionToMove(player, action);
   std::string s = (player == kRedPlayer) ? "x" : "o";
   s += static_cast<int>('a') + move.first;
-  s.append(std::to_string(mBoard.getSize() - move.second));
+  s.append(std::to_string(board_.GetSize() - move.second));
   return s;
 }
 
-void TwixTState::setPegAndLinksOnTensor(absl::Span<float> values,
-                                        const Cell *pCell, int offset, int turn,
+void TwixTState::SetPegAndLinksOnTensor(absl::Span<float> values,
+                                        const Cell& cell, int offset, int turn,
                                         Move move) const {
   // we flip col/row here for better output in playthrough file
   TensorView<3> view(
-      values, {kNumPlanes, mBoard.getSize(), mBoard.getSize() - 2}, false);
-  Move tensorMove = mBoard.getTensorMove(move, turn);
+      values, {kNumPlanes, board_.GetSize(), board_.GetSize() - 2}, false);
+  Move tensorMove = board_.GetTensorMove(move, turn);
 
-  if (!pCell->hasLinks()) {
+  if (!cell.HasLinks()) {
     // peg has no links -> use plane 0
     view[{0 + offset, tensorMove.second, tensorMove.first}] = 1.0;
   } else {
@@ -89,7 +89,7 @@ void TwixTState::setPegAndLinksOnTensor(absl::Span<float> values,
     view[{1 + offset, tensorMove.second, tensorMove.first}] = 1.0;
   }
 
-  if (pCell->hasBlockedNeighbors()) {
+  if (cell.HasBlockedNeighbors()) {
     // peg has blocked neighbors on plane 1 -> use also plane 2
     view[{2 + offset, tensorMove.second, tensorMove.first}] = 1.0;
   }
@@ -102,7 +102,7 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
 
   const int kOpponentPlaneOffset = 3;
   const int kCurPlayerPlaneOffset = 0;
-  int size = mBoard.getSize();
+  int size = board_.GetSize();
 
   // 6 planes of size boardSize x (boardSize-2):
   // each plane excludes the endlines of the opponent
@@ -112,30 +112,30 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
 
   // here we initialize Tensor with zeros for each state
   TensorView<3> view(
-      values, {kNumPlanes, mBoard.getSize(), mBoard.getSize() - 2}, true);
+      values, {kNumPlanes, board_.GetSize(), board_.GetSize() - 2}, true);
 
   for (int c = 0; c < size; c++) {
     for (int r = 0; r < size; r++) {
       Move move = {c, r};
-      const Cell *pCell = mBoard.getConstCell(move);
-      int color = pCell->getColor();
+      const Cell& cell = board_.GetConstCell(move);
+      int color = cell.GetColor();
       if (player == kRedPlayer) {
         if (color == kRedColor) {
           // no turn
-          setPegAndLinksOnTensor(values, pCell, kCurPlayerPlaneOffset, 0, move);
+          SetPegAndLinksOnTensor(values, cell, kCurPlayerPlaneOffset, 0, move);
         } else if (color == kBlueColor) {
           // 90 degr turn (blue player sits left side of red player)
-          setPegAndLinksOnTensor(values, pCell, kOpponentPlaneOffset, 90, move);
+          SetPegAndLinksOnTensor(values, cell, kOpponentPlaneOffset, 90, move);
         }
       } else if (player == kBluePlayer) {
         if (color == kBlueColor) {
           // 90 degr turn
-          setPegAndLinksOnTensor(values, pCell, kCurPlayerPlaneOffset, 90,
+          SetPegAndLinksOnTensor(values, cell, kCurPlayerPlaneOffset, 90,
                                  move);
         } else if (color == kRedColor) {
           // 90+90 degr turn (red player sits left of blue player)
-          // setPegAndLinksOnTensor(values, pCell, 5, size-c-2, size-r-1);
-          setPegAndLinksOnTensor(values, pCell, kOpponentPlaneOffset, 180,
+          // setPegAndLinksOnTensor(values, cell, 5, size-c-2, size-r-1);
+          SetPegAndLinksOnTensor(values, cell, kOpponentPlaneOffset, 180,
                                  move);
         }
       }
@@ -145,21 +145,21 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
 
 TwixTGame::TwixTGame(const GameParameters &params)
     : Game(kGameType, params),
-      mAnsiColorOutput(
+      ansiColorOutput_(
           ParameterValue<bool>("ansi_color_output", kDefaultAnsiColorOutput)),
-      mBoardSize(ParameterValue<int>("board_size", kDefaultBoardSize)),
-      mDiscount(ParameterValue<double>("discount", kDefaultDiscount)) {
-  if (mBoardSize < kMinBoardSize || mBoardSize > kMaxBoardSize) {
+      boardSize_(ParameterValue<int>("board_size", kDefaultBoardSize)),
+      discount_(ParameterValue<double>("discount", kDefaultDiscount)) {
+  if (boardSize_ < kMinBoardSize || boardSize_ > kMaxBoardSize) {
     SpielFatalError("board_size out of range [" +
                     std::to_string(kMinBoardSize) + ".." +
                     std::to_string(kMaxBoardSize) +
-                    "]: " + std::to_string(mBoardSize) + "; ");
+                    "]: " + std::to_string(boardSize_) + "; ");
   }
 
-  if (mDiscount <= kMinDiscount || mDiscount > kMaxDiscount) {
+  if (discount_ <= kMinDiscount || discount_ > kMaxDiscount) {
     SpielFatalError("discount out of range [" + std::to_string(kMinDiscount) +
                     " < discount <= " + std::to_string(kMaxDiscount) +
-                    "]: " + std::to_string(mDiscount) + "; ");
+                    "]: " + std::to_string(discount_) + "; ");
   }
 }
 

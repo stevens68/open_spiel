@@ -53,78 +53,78 @@ enum Result { kOpen, kRedWin, kBlueWin, kDraw };
 enum Color { kRedColor, kBlueColor, kEmpty, kOffBoard };
 
 // blockerMap stores set of blocking links for each link
-static std::map<Link, std::set<Link>> blockerMap;
+static std::unordered_map<Link, std::set<Link>> blockerMap;
 
-inline std::set<Link> *getBlockers(Link link) { return &blockerMap[link]; }
+inline const std::set<Link>& GetBlockers(Link link) { return blockerMap[link]; }
 
-inline void pushBlocker(Link link, Link blockedLink) {
+inline void PushBlocker(Link link, Link blockedLink) {
   blockerMap[link].insert(blockedLink);
 }
 
-inline void deleteBlocker(Link link, Link blockedLink) {
+inline void DeleteBlocker(Link link, Link blockedLink) {
   blockerMap[link].erase(blockedLink);
 }
 
-inline void clearBlocker() { blockerMap.clear(); }
+inline void ClearBlocker() { blockerMap.clear(); }
 
 class Board {
  private:
-  int mMoveCounter = 0;
-  bool mSwapped = false;
-  Move mMoveOne;
-  int mResult = kOpen;
-  std::vector<std::vector<Cell>> mCell;
-  int mSize;  // length of a side of the board
-  bool mAnsiColorOutput;
-  std::vector<Action> mLegalActions[kNumPlayers];
+  int moveCounter_ = 0;
+  bool swapped_ = false;
+  Move moveOne_;
+  int result_ = kOpen;
+  std::vector<std::vector<Cell>> cell_;
+  int size_;  // length of a side of the board
+  bool ansiColorOutput_;
+  std::vector<Action> legalActions_[kNumPlayers];
 
-  void setSize(int size) { mSize = size; }
+  void SetSize(int size) { size_ = size; }
 
-  bool getAnsiColorOutput() const { return mAnsiColorOutput; }
-  void setAnsiColorOutput(bool ansiColorOutput) {
-    mAnsiColorOutput = ansiColorOutput;
+  bool GetAnsiColorOutput() const { return ansiColorOutput_; }
+  void SetAnsiColorOutput(bool ansiColorOutput) {
+    ansiColorOutput_ = ansiColorOutput;
   }
 
-  void setResult(int result) { mResult = result; }
+  void SetResult(int result) { result_ = result; }
 
-  bool getSwapped() const { return mSwapped; }
-  void setSwapped(bool swapped) { mSwapped = swapped; }
+  bool GetSwapped() const { return swapped_; }
+  void SetSwapped(bool swapped) { swapped_ = swapped; }
 
-  Move getMoveOne() const { return mMoveOne; }
-  void setMoveOne(Move move) { mMoveOne = move; }
+  Move GetMoveOne() const { return moveOne_; }
+  void SetMoveOne(Move move) { moveOne_ = move; }
 
-  void incMoveCounter() { mMoveCounter++; }
+  void IncMoveCounter() { moveCounter_++; }
 
-  bool hasLegalActions(Player player) const {
-    return mLegalActions[player].size() > 0;
+  bool HasLegalActions(Player player) const {
+    return legalActions_[player].size() > 0;
   }
 
-  void removeLegalAction(Player, Move);
+  void RemoveLegalAction(Player, Move);
 
-  void updateResult(Player, Move);
-  void undoFirstMove();
+  void UpdateResult(Player, Move);
+  void UndoFirstMove();
 
-  void initializeCells(bool);
-  void initializeCandidates(Move, Cell *, bool);
-  void initializeBlockerMap(Move, int, LinkDescriptor *);
+  void InitializeCells(bool);
+  void InitializeCandidates(Move, Cell&, bool);
+  void InitializeBlockerMap(Move, int, LinkDescriptor&);
 
-  void initializeLegalActions();
+  void InitializeLegalActions();
 
-  void setPegAndLinks(Player, Move);
-  void exploreLocalGraph(Player, Cell *, enum Border);
+  void SetPegAndLinks(Player, Move);
+  void ExploreLocalGraph(Player, Cell&, enum Border);
 
-  void appendLinkChar(std::string *, Move, enum Compass, std::string) const;
-  void appendColorString(std::string *, std::string, std::string) const;
-  void appendPegChar(std::string *, Move) const;
+  void AppendLinkChar(std::string&, Move, enum Compass, std::string) const;
+  void AppendColorString(std::string&, std::string, std::string) const;
+  void AppendPegChar(std::string&, Move) const;
 
-  void appendBeforeRow(std::string *, Move) const;
-  void appendPegRow(std::string *, Move) const;
-  void appendAfterRow(std::string *, Move) const;
+  void AppendBeforeRow(std::string&, Move) const;
+  void AppendPegRow(std::string&, Move) const;
+  void AppendAfterRow(std::string&, Move) const;
 
-  bool moveIsOnBorder(Player, Move) const;
-  bool moveIsOffBoard(Move) const;
+  bool MoveIsOnBorder(Player, Move) const;
+  bool MoveIsOffBoard(Move) const;
 
-  Action stringToAction(std::string s) const;
+  Action StringToAction(std::string s) const;
 
  public:
   ~Board() {}
@@ -132,25 +132,25 @@ class Board {
   Board(int, bool);
 
   // std::string actionToString(Action) const;
-  int getSize() const { return mSize; }
-  std::string toString() const;
-  int getResult() const { return mResult; }
-  int getMoveCounter() const { return mMoveCounter; }
-  std::vector<Action> getLegalActions(Player player) const {
-    return mLegalActions[player];
+  int GetSize() const { return size_; }
+  std::string ToString() const;
+  int GetResult() const { return result_; }
+  int GetMoveCounter() const { return moveCounter_; }
+  std::vector<Action> GetLegalActions(Player player) const {
+    return legalActions_[player];
   }
-  void applyAction(Player, Action);
-  Cell *getCell(Move move) { return &mCell[move.first][move.second]; }
-  const Cell *getConstCell(Move move) const {
-    return &mCell[move.first][move.second];
+  void ApplyAction(Player, Action);
+  Cell& GetCell(Move move) { return cell_[move.first][move.second]; }
+  const Cell& GetConstCell(Move move) const {
+    return cell_[move.first][move.second];
   }
-  Move actionToMove(open_spiel::Player player, Action action) const;
-  Action moveToAction(Player player, Move move) const;
-  Move getTensorMove(Move move, int turn) const;
+  Move ActionToMove(open_spiel::Player player, Action action) const;
+  Action MoveToAction(Player player, Move move) const;
+  Move GetTensorMove(Move move, int turn) const;
 };
 
 // twixt board:
-// * the board has mBoardSize x mBoardSize cells
+// * the board has boardSize_ x boardSize_ cells
 // * the x-axis (cols) points right,
 // * the y axis (rows) points up
 // * coords [col,row] start at the lower left corner [0,0]
