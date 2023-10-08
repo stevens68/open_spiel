@@ -35,7 +35,7 @@ class TwixTState : public State {
   TwixTState(const TwixTState &) = default;
   TwixTState &operator=(const TwixTState &) = default;
 
-  open_spiel::Player CurrentPlayer() const override { return currentPlayer_; };
+  open_spiel::Player CurrentPlayer() const override { return current_player_; };
 
   std::string ActionToString(open_spiel::Player player,
                              Action action) const override;
@@ -43,17 +43,17 @@ class TwixTState : public State {
   std::string ToString() const override { return board_.ToString(); };
 
   bool IsTerminal() const override {
-    int result = board_.GetResult();
+    int result = board_.result();
     return (result == kRedWin || result == kBlueWin || result == kDraw);
   };
 
   std::vector<double> Returns() const override {
     double reward;
-    int result = board_.GetResult();
+    int result = board_.result();
     if (result == kOpen || result == kDraw) {
       return {0.0, 0.0};
     } else {
-      reward = pow(discount_, board_.GetMoveCounter());
+      reward = 1.0;
       if (result == kRedWin) {
         return {reward, -reward};
       } else {
@@ -86,27 +86,29 @@ class TwixTState : public State {
   std::vector<Action> LegalActions() const override {
     if (IsTerminal())
       return {};
-    return board_.GetLegalActions(CurrentPlayer());
+    return board_.GetLegalActions(current_player_);
   };
 
  protected:
-  void DoApplyAction(Action move) override {
-    board_.ApplyAction(CurrentPlayer(), move);
-    if (board_.GetResult() == kOpen) {
-      SetCurrentPlayer(1 - CurrentPlayer());
+  void DoApplyAction(Action action) override {
+    const std::vector<Action>& v = LegalActions();
+    if (std::find(v.begin(), v.end(), action) == v.end()) {
+      SpielFatalError("Not a legal action: " + std::to_string(action));
+    }
+    board_.ApplyAction(CurrentPlayer(), action);
+    if (board_.result() == kOpen) {
+      set_current_player(1 - CurrentPlayer());
     } else {
-      SetCurrentPlayer(kTerminalPlayerId);
+      set_current_player(kTerminalPlayerId);
     }
   };
 
  private:
-  int currentPlayer_ = kRedPlayer;
+  Player current_player_ = kRedPlayer;
   Board board_;
-  double discount_ = kDefaultDiscount;
-
-  void SetCurrentPlayer(int player) { currentPlayer_ = player; }
+  void set_current_player(Player player) { current_player_ = player; }
   void SetPegAndLinksOnTensor(absl::Span<float>, const Cell&, int, int,
-                              Move) const;
+                              Position) const;
 };
 
 class TwixTGame : public Game {
@@ -118,7 +120,7 @@ class TwixTGame : public Game {
   };
 
   int NumDistinctActions() const override {
-    return boardSize_ * (boardSize_ - 2);
+    return board_size_ * (board_size_ - 2);
   };
 
   int NumPlayers() const override { return kNumPlayers; };
@@ -127,24 +129,20 @@ class TwixTGame : public Game {
   double MaxUtility() const override { return 1.0; };
 
   std::vector<int> ObservationTensorShape() const override {
-    static std::vector<int> shape{kNumPlanes, boardSize_, boardSize_ - 2};
+    static std::vector<int> shape{kNumPlanes, board_size_, board_size_ - 2};
     return shape;
   }
 
   int MaxGameLength() const {
     // square - 4 corners + swap move
-    return boardSize_ * boardSize_ - 4 + 1;
+    return board_size_ * board_size_ - 4 + 1;
   }
-  bool GetAnsiColorOutput() const { return ansiColorOutput_; }
-  bool GetUnicodeOutput() const { return unicodeOutput_; }
-  int GetBoardSize() const { return boardSize_; }
-  double GetDiscount() const { return discount_; }
+  bool GetAnsiColorOutput() const { return ansi_color_output_; }
+  int GetBoardSize() const { return board_size_; }
 
  private:
-  bool ansiColorOutput_;
-  bool unicodeOutput_;
-  int boardSize_;
-  double discount_;
+  bool ansi_color_output_;
+  int board_size_;
 };
 
 }  // namespace twixt
