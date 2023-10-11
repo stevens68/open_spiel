@@ -203,13 +203,6 @@ void Board::UpdateResult(Player player, Position position) {
     return;
   }
 
-  // check if we are early in the game...
-  if (move_counter() < size() - 1) {
-    // e.g. less than 5 moves played on a 6x6 board
-    // => no win or draw possible, no need to update
-    return;
-  }
-
   // check if opponent (player to turn next) has any legal moves left
   if (!HasLegalActions(1 - player)) {
     set_result(kDraw);
@@ -270,18 +263,27 @@ void Board::InitializeCandidates(Position position, Cell& cell,
 }
 
 void Board::InitializeLegalActions() {
-  int num_distinct_legalActions = size() * (size() - 2);
+  int num_legal_actions_per_player = size() * (size() - 2);
 
-  legal_actions_[kRedPlayer].resize(num_distinct_legalActions);
-  legal_actions_[kBluePlayer].resize(num_distinct_legalActions);
+  for (Player p=0; p<kNumPlayers; p++) {
+    legal_actions_[p].resize(num_legal_actions_per_player);
+    legal_actions_[p].clear();
+  }
 
-  for (int player = kRedPlayer; player < kNumPlayers; player++) {
-    std::vector<Action>& la = legal_actions_[player];
-    la.clear();
-    la.reserve(num_distinct_legalActions);
-
-    for (Action a = 0; a < num_distinct_legalActions; a++) {
-      la.push_back(a);
+  for (int col=0; col<size(); col++) {
+    for (int row=0; row<size(); row++) {
+      Position pos = {col, row};
+      Action action = col*size()+row;
+      if (PositionIsOffBoard(pos)) {
+        continue;
+      } else if (PositionIsOnBorder(kRedPlayer, pos)) {
+        legal_actions_[kRedPlayer].push_back(action);
+      } else if (PositionIsOnBorder(kBluePlayer, pos)) {
+        legal_actions_[kBluePlayer].push_back(action);
+      } else {
+        legal_actions_[kRedPlayer].push_back(action);
+        legal_actions_[kBluePlayer].push_back(action);
+      }
     }
   }
 }
@@ -467,7 +469,7 @@ void Board::UndoFirstMove() {
 }
 
 void Board::ApplyAction(Player player, Action action) {
-  Position position = ActionToPosition(player, action);
+  Position position = ActionToPosition(action);
 
   if (move_counter() == 1) {
     // it's the second position
@@ -506,7 +508,7 @@ void Board::ApplyAction(Player player, Action action) {
 
   IncMoveCounter();
 
-  // Update the predicted result and update mCurrentPlayer...
+  // Update the predicted result and update current_player_...
   UpdateResult(player, position);
 }
 
@@ -529,7 +531,7 @@ void Board::SetPegAndLinks(Player player, Position position) {
 
       Cell& target_cell = GetCell(cell.GetNeighbor(dir));
       if (target_cell.color() == kEmpty) {
-        // pCell is not a candidate for pTarGetCell anymore
+        // cell is not a candidate for pTarGetCell anymore
         // (from opponent's perspective)
         target_cell.DeleteCandidate(1 - player, OppCand(cand));
       } else {
@@ -602,44 +604,20 @@ void Board::ExploreLocalGraph(Player player, Cell& cell, enum Border border) {
   }
 }
 
-Position Board::GetTensorPosition(Position position, int turn) const {
-  switch (turn) {
-  case 0:
-    return {position.x - 1, position.y};
-    break;
-  case 90:
+Position Board::GetTensorPosition(Position position, bool turn) const {
+  if (turn) {
     return {size() - position.y - 2, position.x};
-    break;
-  case 180:
-    return {size() - position.x - 2, size() - position.y - 1};
-    break;
-  default:
-    SpielFatalError("invalid turn: " + std::to_string(turn) +
-                    "; should be 0, 90, 180");
+  } else {
+    return {position.x - 1, position.y};
   }
 }
 
-Position Board::ActionToPosition(open_spiel::Player player,
-    Action action) const {
-  Position position;
-  if (player == kRedPlayer) {
-    position.x = action / size_ + 1;  // col 2
-    position.y = action % size_;      // row 3
-  } else {
-    position.x = action % size_;                 // col 2
-    position.y = size_ - (action / size_) - 2;  // row 3
-  }
-  return position;
+Position Board::ActionToPosition(Action action) const {
+  return { (int) action / size_, (int) action % size_};
 }
 
-Action Board::PositionToAction(Player player, Position position) const {
-  Action action;
-  if (player == kRedPlayer) {
-    action = (position.x - 1) * size_ + position.y;
-  } else {
-    action = (size_ - position.y - 2) * size_ + position.x;
-  }
-  return action;
+Action Board::PositionToAction(Position position) const {
+  return position.x * size() + position.y;
 }
 
 Action Board::StringToAction(std::string s) const {
@@ -647,7 +625,7 @@ Action Board::StringToAction(std::string s) const {
   Position position;
   position.x = static_cast<int>(s.at(1)) - static_cast<int>('a');
   position.y = size() - (static_cast<int>(s.at(2)) - static_cast<int>('0'));
-  return PositionToAction(player, position);
+  return PositionToAction(position);
 }
 
 bool Board::PositionIsOnBorder(Player player, Position position) const {
@@ -669,12 +647,12 @@ bool Board::PositionIsOffBoard(Position position) const {
 }
 
 void Board::RemoveLegalAction(Player player, Position position) {
-  Action action = PositionToAction(player, position);
-  std::vector<Action> *la = &legal_actions_[player];
+  Action action = PositionToAction(position);
+  std::vector<Action>& la = legal_actions_[player];
   std::vector<Action>::iterator it;
-  it = find(la->begin(), la->end(), action);
-  if (it != la->end())
-    la->erase(it);
+  it = find(la.begin(), la.end(), action);
+  if (it != la.end())
+    la.erase(it);
 }
 
 }  // namespace twixt

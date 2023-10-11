@@ -112,9 +112,9 @@ class Cell {
   // bitmap of outgoing links from this cell
   int links_ = 0;
   // bitmap of candidates of a player
-  // (candidates are neighbors that are empty or have same color)
+  // (candidates are neighbors that are empty or have the same color)
   int candidates_[kNumPlayers] = {0, 0};
-  // bitmap of neighbors of same color that are blocked
+  // bitmap of neighbors of the same color that are blocked
   int blocked_neighbors_ = 0;
   // array of neighbor tuples
   // (cells in knight's move distance that are on board)

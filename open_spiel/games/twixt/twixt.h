@@ -107,7 +107,7 @@ class TwixTState : public State {
   Player current_player_ = kRedPlayer;
   Board board_;
   void set_current_player(Player player) { current_player_ = player; }
-  void SetPegAndLinksOnTensor(absl::Span<float>, const Cell&, int, int,
+  void SetPegAndLinksOnTensor(absl::Span<float>, const Cell&, int, bool,
                               Position) const;
 };
 
@@ -120,7 +120,7 @@ class TwixTGame : public Game {
   };
 
   int NumDistinctActions() const override {
-    return board_size_ * (board_size_ - 2);
+    return board_size_ * board_size_ - 4;
   };
 
   int NumPlayers() const override { return kNumPlayers; };

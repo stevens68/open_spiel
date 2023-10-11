@@ -35,10 +35,6 @@ const int kDefaultBoardSize = 8;
 
 const bool kDefaultAnsiColorOutput = true;
 
-const double kMinDiscount = 0.0;
-const double kMaxDiscount = 1.0;
-const double kDefaultDiscount = kMaxDiscount;
-
 // 8 link descriptors store the properties of a link direction
 struct {
   Position offsets;  // offset of the target peg, e.g. (2, -1) for ENE
@@ -47,7 +43,7 @@ struct {
 
 // Tensor has 2 * 3 planes of size bordSize * (boardSize-2)
 // see ObservationTensor
-const int kNumPlanes = 6;
+const int kNumPlanes = 12;
 
 enum Result { kOpen, kRedWin, kBlueWin, kDraw };
 
@@ -71,9 +67,9 @@ class Board {
   const Cell& GetConstCell(Position position) const {
     return cell_[position.x][position.y];
   }
-  Position ActionToPosition(open_spiel::Player player, Action action) const;
-  Action PositionToAction(Player player, Position position) const;
-  Position GetTensorPosition(Position position, int turn) const;
+  Position ActionToPosition(Action action) const;
+  Action PositionToAction(Position position) const;
+  Position GetTensorPosition(Position position, bool turn) const;
 
  private:
   int move_counter_ = 0;
@@ -158,93 +154,63 @@ class BlockerMap {
 // * the board has board_size_ * board_size_ cells
 // * the x-axis (cols) points right,
 // * the y axis (rows) points up
-// * coords [col,row] start at the lower left corner [0,0]
 // * coord labels c3, f4, d2, etc. start at the upper left corner (a1)
 // * player 0, 'x', red color, plays top/bottom
 // * player 1, 'o', blue color, plays left/right
 // * positions are labeled: col letter + row number, e.g. d4
-// * moves are labeled player number + col letter + row number,, e.g. xd4
-// * empty cell == 2
-// * corner cell == 3
+// * moves are labeled: player label + col letter + row number, e.g. xd4
+// * empty cell code = 2
+// * corner cell code = 3
 //
 // example 8 x 8 board:
-//   move: xc5, player 0 action: 11, red peg at [2,3]
-//   move: of5, player 1 action: 29, blue peg at [5,3]
-//   move: xd3, player 0 action: 21, red peg at [3,5]
-//         plus link from [2,3] to [3,5]
-//            cell[2][3].links = 00000001  (bit 1 set for NNE direction)
-//            cell[3][5].links = 00010000  (bit 5 set for SSW direction)
+//   move: xc5, player 0 action: 19, red peg at [2,3]
+//   move: of5, player 1 action: 43, blue peg at [5,3]
+//   move: xd3, player 0 action: 29, red peg at [3,5]
+//         link from [2,3] to [3,5]
+//         cell[2][3].links = 00000001  (bit 1 set for NNE direction)
+//         cell[3][5].links = 00010000  (bit 5 set for SSW direction)
 //
 //     a   b   c   d   e   f   g   h
-//    ------------------------------
-// 7 | 3   2   2   2   2   2   2   3 |1
-//   |                               |
-// 6 | 2   2   2   2   2   2   2   2 |2
-//   |                               |
-// 5 | 2   2   2  [0]  2   2   2   2 |3
-//   |                               |
-// 4 | 2   2   2   2   2   2   2   2 |4
-//   |                               |
-// 3 | 2   2  [0]  2   2  [1]  2   2 |5
-//   |                               |
-// 2 | 2   2   2   2   2   2   2   2 |6
-//   |                               |
-// 1 | 2   2   2   2   2   2   2   2 |7
-//   |                               |
-// 0 | 3   2   2   2   2   2   2   3 |8
-//     ------------------------------
-//     0   1   2   3   4   5   6   7
+//  7  3|  2   2   2   2   2   2 | 3  1
+//    --|------------------------|--
+//  6  2|  2   2   2   2   2   2 | 2  2
+//      |                        |
+//  5  2|  2   2  [0]  2   2   2 | 2  3
+//      |                        |
+//  4  2|  2   2   2   2   2   2 | 2  4
+//      |                        |
+//  3  2|  2  [0]  2   2  [1]  1 | 2  5
+//      |                        |
+//  2  2|  2   2   2   2   2   2 | 2  6
+//      |                        |
+//  1  2|  2   2   2   2   2   2 | 2  7
+//    --|------------------------|--
+//  0   |  2   2   2   2   2   2 |    8
+//     0   1   2   3   4   5   6   7 
 //
-// Actions are indexed from 0 to board_size_ * (board_size_ - 2)
-// from the player's perspective:
+// Actions are indexed from 0 to board_size_ * board_size_
+// the corners are not legal actions.
 //
-// player 0 actions:
 //     a   b   c   d   e   f   g   h
-//    ------------------------------
-// 7 |     7  15  23  31  39  47     |1
-//   |                               |
-// 6 |     6  14  22  30  38  46     |2
-//   |                               |
-// 5 |     5  13 [21] 29  37  45     |3
-//   |                               |
-// 4 |     4  12  20  28  36  44     |4
-//   |                               |
-// 3 |     3 [11] 19  27  35  43     |5
-//   |                               |
-// 2 |     2  10  18  26  34  42     |6
-//   |                               |
-// 1 |     1   9  17  25  33  41     |7
-//   |                               |
-// 0 |     0   8  16  24  32  40     |8
-//     ------------------------------
-//     0   1   2   3   4   5   6   7
-
-// player 1 actions:
-//     a   b   c   d   e   f   g   h
-//    ------------------------------
-// 7 |                               |1
-//   |                               |
-// 6 | 0   1   2   3   4   5   6   7 |2
-//   |                               |
-// 5 | 8   9  10  11  12  13  14  15 |3
-//   |                               |
-// 4 |16  17  18  19  20  21  22  23 |4
-//   |                               |
-// 3 |24  25  26  27  28 [29] 30  31 |5
-//   |                               |
-// 2 |32  33  34  35  36  37  38  39 |6
-//   |                               |
-// 1 |40  41  42  43  44  45  46  47 |7
-//   |                               |
-// 0 |                               |8
-//     ------------------------------
-//     0   1   2   3   4   5   6   7
+//  7   | 15  23  31  39  47  55 |    1
+//    --|------------------------|--
+//  6  6| 14  22  30  38  46  54 |62  2
+//      |                        |
+//  5  5| 13  21 [29] 37  45  53 |61  3
+//      |                        |
+//  4  4| 12  20  28  36  44  52 |60  4
+//      |                        |
+//  3  3| 11 [19] 27  35 [43] 51 |59  5
+//      |                        |
+//  2  2| 10  18  26  34  42  50 |58  6
+//      |                        |
+//  1  1|  9  17  25  33  41  49 |57  7
+//    --|------------------------|--
+//  0   |  8  16  24  32  40  48 |    8
+//     0   1   2   3   4   5   6   7 
 //
-//  mapping move to player 0 action: [c,r] => (c-1) * size + r
-//  xd6 == [2,3] => (2-1) * 8 + 3 == 11
-//
-//  mapping move to player 1 action: [c,r] => (size-r-2) * size + c,
-//  of5  == [5,3] => (8-3-2) * 8 + 5 == 29
+//  mapping move to action: [c,r] => c * size + r
+//  xd6 == [2,3] => 2 * 8 + 3 == 19
 
 }  // namespace twixt
 }  // namespace open_spiel
