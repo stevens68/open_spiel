@@ -61,7 +61,7 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 
 TwixTState::TwixTState(std::shared_ptr<const Game> game) : State(game) {
   const TwixTGame &parent_game = static_cast<const TwixTGame &>(*game);
-  board_ = Board(parent_game.GetBoardSize(), parent_game.GetAnsiColorOutput());
+  board_ = Board(parent_game.board_size(), parent_game.ansi_color_output());
 }
 
 std::string TwixTState::ActionToString(open_spiel::Player player,
@@ -85,10 +85,9 @@ void TwixTState::SetPegAndLinksOnTensor(absl::Span<float> values,
     // peg has no links -> plane 0 / 6
     view[{offset + 0, tensorPosition.y, tensorPosition.x}] = 1.0;
     return;
-    
-  } 
+  }
 
-  for (int dir=0; dir<=4; dir++) {
+  for (int dir = 0; dir <= 4; dir++) {
     if (cell.HasLink(dir)) {
       // peg has link in direction dir -> plane 1..4 / 7..10
       view[{offset + 1 + dir, tensorPosition.y, tensorPosition.x}] = 1.0;
@@ -113,7 +112,7 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
   // each plane excludes the endlines of the opponent
   // plane 0/6 is for the unlinked pegs
   // plane 1..4 / 7..10 is for the links NNE, ENE, ESE, SSE, resp.
-  // plane 5/11 is for blocked links 
+  // plane 5/11 is for blocked links
 
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, true);
@@ -127,7 +126,7 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
         // no turn
         SetPegAndLinksOnTensor(values, cell, kPlaneOffset[0], false, position);
       } else if (color == kBlueColor) {
-        // 90 degr turn 
+        // 90 degr turn
         SetPegAndLinksOnTensor(values, cell, kPlaneOffset[1], true, position);
       }
     }

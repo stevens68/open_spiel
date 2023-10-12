@@ -265,13 +265,13 @@ void Board::InitializeCandidates(Position position, Cell& cell,
 void Board::InitializeLegalActions() {
   int num_legal_actions_per_player = size() * (size() - 2);
 
-  for (Player p=0; p<kNumPlayers; p++) {
+  for (Player p=0; p < kNumPlayers; p++) {
     legal_actions_[p].resize(num_legal_actions_per_player);
     legal_actions_[p].clear();
   }
 
-  for (int col=0; col<size(); col++) {
-    for (int row=0; row<size(); row++) {
+  for (int col=0; col < size(); col++) {
+    for (int row=0; row < size(); row++) {
       Position pos = {col, row};
       Action action = col*size()+row;
       if (PositionIsOffBoard(pos)) {
@@ -483,7 +483,7 @@ void Board::ApplyAction(Player player, Action action) {
       // turn position 90° clockwise:
       // [2,3]->[3,5]; [1,4]->[4,6]; [3,2]->[2,4]
       int x = position.y;
-      int y = size() - position.x - 1;  
+      int y = size() - position.x - 1;
       position = {x, y};
 
     } else {
@@ -613,7 +613,7 @@ Position Board::GetTensorPosition(Position position, bool turn) const {
 }
 
 Position Board::ActionToPosition(Action action) const {
-  return { (int) action / size_, (int) action % size_};
+  return { static_cast<int>(action) / size_, static_cast<int>(action) % size_};
 }
 
 Action Board::PositionToAction(Position position) const {

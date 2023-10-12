@@ -120,7 +120,7 @@ class TwixTGame : public Game {
   };
 
   int NumDistinctActions() const override {
-    return board_size_ * board_size_ - 4;
+    return board_size_ * board_size_;
   };
 
   int NumPlayers() const override { return kNumPlayers; };
@@ -137,8 +137,8 @@ class TwixTGame : public Game {
     // square - 4 corners + swap move
     return board_size_ * board_size_ - 4 + 1;
   }
-  bool GetAnsiColorOutput() const { return ansi_color_output_; }
-  int GetBoardSize() const { return board_size_; }
+  bool ansi_color_output() const { return ansi_color_output_; }
+  int board_size() const { return board_size_; }
 
  private:
   bool ansi_color_output_;

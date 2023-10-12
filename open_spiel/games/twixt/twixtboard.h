@@ -186,7 +186,7 @@ class BlockerMap {
 //  1  2|  2   2   2   2   2   2 | 2  7
 //    --|------------------------|--
 //  0   |  2   2   2   2   2   2 |    8
-//     0   1   2   3   4   5   6   7 
+//     0   1   2   3   4   5   6   7
 //
 // Actions are indexed from 0 to board_size_ * board_size_
 // the corners are not legal actions.
@@ -207,7 +207,7 @@ class BlockerMap {
 //  1  1|  9  17  25  33  41  49 |57  7
 //    --|------------------------|--
 //  0   |  8  16  24  32  40  48 |    8
-//     0   1   2   3   4   5   6   7 
+//     0   1   2   3   4   5   6   7
 //
 //  mapping move to action: [c,r] => c * size + r
 //  xd6 == [2,3] => 2 * 8 + 3 == 19
