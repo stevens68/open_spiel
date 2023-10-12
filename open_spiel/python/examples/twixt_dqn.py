@@ -19,6 +19,7 @@ from absl import flags
 from absl import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
+from tqdm import tqdm
 
 from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import dqn
@@ -54,7 +55,7 @@ def eval_against_random_bots(env, trained_agents, random_agents, num_episodes):
   for player_pos in range(num_players):
     cur_agents = random_agents[:]
     cur_agents[player_pos] = trained_agents[player_pos]
-    for _ in range(num_episodes):
+    for _ in tqdm(range(num_episodes), "eval" + str(player_pos)):
       time_step = env.reset()
       episode_rewards = 0
       while not time_step.last():
@@ -78,7 +79,7 @@ def main(_):
   game = "twixt"
   num_players = 2
 
-  env_configs = {"board_size": 5}
+  env_configs = {"board_size": 8}
   env = rl_environment.Environment(game, **env_configs)
   info_state_size = env.observation_spec()["info_state"][0]
   num_actions = env.action_spec()["num_actions"]
@@ -104,28 +105,30 @@ def main(_):
     ]
     sess.run(tf.global_variables_initializer())
 
-    for ep in range(FLAGS.num_train_episodes):
-      if (ep + 1) % FLAGS.eval_every == 0:
-        r_mean = eval_against_random_bots(env, agents, random_agents, 1000)
-        logging.info("[%s] Mean episode rewards %s", ep + 1, r_mean)
-      if (ep + 1) % FLAGS.save_every == 0:
+    for a in range(FLAGS.num_train_episodes):
+      for b in tqdm(range(FLAGS.eval_every), desc="train"):
+        ep = a * FLAGS.eval_every + b;
+        if (ep + 1) % FLAGS.save_every == 0:
+          for agent in agents:
+            agent.save(FLAGS.checkpoint_dir)
+
+        time_step = env.reset()
+        while not time_step.last():
+          player_id = time_step.observations["current_player"]
+          if env.is_turn_based:
+            agent_output = agents[player_id].step(time_step)
+            action_list = [agent_output.action]
+          else:
+            agents_output = [agent.step(time_step) for agent in agents]
+            action_list = [agent_output.action for agent_output in agents_output]
+          time_step = env.step(action_list)
+
+        # Episode is over, step all agents with final info state.
         for agent in agents:
-          agent.save(FLAGS.checkpoint_dir)
+          agent.step(time_step)
 
-      time_step = env.reset()
-      while not time_step.last():
-        player_id = time_step.observations["current_player"]
-        if env.is_turn_based:
-          agent_output = agents[player_id].step(time_step)
-          action_list = [agent_output.action]
-        else:
-          agents_output = [agent.step(time_step) for agent in agents]
-          action_list = [agent_output.action for agent_output in agents_output]
-        time_step = env.step(action_list)
-
-      # Episode is over, step all agents with final info state.
-      for agent in agents:
-        agent.step(time_step)
+      r_mean = eval_against_random_bots(env, agents, random_agents, 1000)
+      logging.info("[%s] Mean episode rewards %s", ep + 1, r_mean)
 
 
 if __name__ == "__main__":
