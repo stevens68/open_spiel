@@ -29,10 +29,6 @@ inline int OppDir(int direction) {
   return (direction + kMaxCompass / 2) % kMaxCompass;
 }
 
-inline int OppCand(int candidate) {
-  return candidate < 16 ? candidate <<= 4 : candidate >>= 4;
-}
-
 inline std::string PositionToString(Position position) {
   return "[" + std::to_string(position.x) + "," +
                std::to_string(position.y) + "]";
@@ -233,31 +229,22 @@ void Board::InitializeCells(bool init_blocker_map) {
         } else if (y == size() - 1) {
           cell.SetLinkedToBorder(kRedPlayer, kEnd);
         }
-
-        InitializeCandidates(position, cell, init_blocker_map);
+        InitializeNeighbors(position, cell, init_blocker_map);
       }
     }
   }
 }
 
-void Board::InitializeCandidates(Position position, Cell& cell,
+void Board::InitializeNeighbors(Position position, Cell& cell,
     bool init_blocker_map) {
   for (int dir = 0; dir < kMaxCompass; dir++) {
     const LinkDescriptor& ld = kLinkDescriptorTable[dir];
-    Position target_move = position + ld.offsets;
-    if (!PositionIsOffBoard(target_move)) {
+    Position target_position = position + ld.offsets;
+    if (!PositionIsOffBoard(target_position)) {
       if (init_blocker_map) {
         InitializeBlockerMap(position, dir, ld);
       }
-      cell.SetNeighbor(dir, target_move);
-      Cell target_cell = GetCell(target_move);
-      if (!(PositionIsOnBorder(kRedPlayer, position) &&
-            PositionIsOnBorder(kBluePlayer, target_move)) &&
-          !(PositionIsOnBorder(kBluePlayer, position) &&
-            PositionIsOnBorder(kRedPlayer, target_move))) {
-        cell.SetCandidate(kRedPlayer, dir);
-        cell.SetCandidate(kBluePlayer, dir);
-      }
+      cell.SetNeighbor(dir, target_position);
     }
   }
 }
@@ -463,8 +450,7 @@ void Board::AppendAfterRow(std::string& s, Position position) const {
 void Board::UndoFirstMove() {
   Cell& cell = GetCell(move_one());
   cell.set_color(kEmpty);
-  // initialize Candidates but not static blockerMap
-  InitializeCandidates(move_one(), cell, false);
+  InitializeNeighbors(move_one(), cell, false);
   InitializeLegalActions();
 }
 
@@ -523,18 +509,12 @@ void Board::SetPegAndLinks(Player player, Position position) {
 
   int dir = 0;
   bool newLinks = false;
-  // check all candidates (neigbors that are empty or have same color)
-  for (int cand = 1, dir = 0; cand <= cell.GetCandidates(player);
-       cand <<= 1, dir++) {
-    if (cell.IsCandidate(player, cand)) {
-      Position n = cell.GetNeighbor(dir);
-
-      Cell& target_cell = GetCell(cell.GetNeighbor(dir));
-      if (target_cell.color() == kEmpty) {
-        // cell is not a candidate for pTarGetCell anymore
-        // (from opponent's perspective)
-        target_cell.DeleteCandidate(1 - player, OppCand(cand));
-      } else {
+  // check all neigbors that are empty or have same color)
+  for (dir = 0; dir < kMaxCompass; dir++) {
+    Position target_position = position + kLinkDescriptorTable[dir].offsets;
+    if (!PositionIsOffBoard(target_position)) {
+      Cell& target_cell = GetCell(target_position);
+      if (target_cell.color() == cell.color()) {
         // check if there are blocking links before setting link
         const std::set<Link>& blockers =
           BlockerMap::GetBlockers((Link){position, dir});
@@ -567,38 +547,41 @@ void Board::SetPegAndLinks(Player player, Position position) {
         } else {
           // we store the fact that these two pegs of the same color cannot be
           // linked this info is used for the ObservationTensor
-          cell.SetBlockedNeighbor(cand);
-          target_cell.SetBlockedNeighbor(OppCand(cand));
+          cell.SetBlockedNeighbor(dir);
+          target_cell.SetBlockedNeighbor(OppDir(dir));
         }
-      }  // is not empty
-    }  // is candidate
-  }  // candidate range
+      }  // same color
+    }  // is on board
+  }  // range of directions
 
   // check if we need to explore further
   if (newLinks) {
+    std::set<Cell*> visited = {};
     if (cell.IsLinkedToBorder(player, kStart) && linked_to_neutral) {
       // case: new cell is linked to START and linked to neutral cells
       // => explore neutral graph and add all its cells to START
-      ExploreLocalGraph(player, cell, kStart);
+      ExploreLocalGraph(player, cell, kStart, visited);
     }
     if (cell.IsLinkedToBorder(player, kEnd) && linked_to_neutral) {
       // case: new cell is linked to END and linked to neutral cells
       // => explore neutral graph and add all its cells to END
-      ExploreLocalGraph(player, cell, kEnd);
+      ExploreLocalGraph(player, cell, kEnd, visited);
     }
   }
 }
 
-void Board::ExploreLocalGraph(Player player, Cell& cell, enum Border border) {
-  int dir = 0;
-  for (int link = 1, dir = 0; link <= cell.links(); link <<= 1, dir++) {
-    if (cell.IsLinked(link)) {
+void Board::ExploreLocalGraph(Player player, Cell& cell,
+  enum Border border, std::set<Cell*> visited) {
+  visited.insert(&cell);
+  for (int dir = 0; dir < kMaxCompass; dir++) {
+    if (cell.HasLink(dir)) {
       Cell& target_cell = GetCell(cell.GetNeighbor(dir));
-      if (!target_cell.IsLinkedToBorder(player, border)) {
-        // linked neighbor is NOT yet member of PegSet
+      if ((visited.find(&target_cell) == visited.end())
+        && !target_cell.IsLinkedToBorder(player, border)) {
+        // linked neighbor has not been visited yet
         // => add it and explore
         target_cell.SetLinkedToBorder(player, border);
-        ExploreLocalGraph(player, target_cell, border);
+        ExploreLocalGraph(player, target_cell, border, visited);
       }
     }
   }

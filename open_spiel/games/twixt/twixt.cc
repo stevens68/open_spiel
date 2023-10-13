@@ -79,17 +79,22 @@ void TwixTState::SetPegAndLinksOnTensor(absl::Span<float> values,
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, false);
   Position tensorPosition = board_.GetTensorPosition(position, turn);
-  
+
   if (cell.HasLinks()) {
     for (int dir = 0; dir < 4; dir++) {
       if (cell.HasLink(dir)) {
-        // peg has link in direction dir -> plane 1..4 / 7..10
+        // peg has link in direction dir: set 1.0 on plane 1..4 / 8..11
         view[{offset + 1 + dir, tensorPosition.x, tensorPosition.y}] = 1.0;
       }
     }
   } else {
-    // set peg on plane 0 / 5
+    // peg has no links: set 1.0 on plane 0 / 6
     view[{offset + 0, tensorPosition.x, tensorPosition.y}] = 1.0;
+  }
+
+  // peg has blocked neighbors: set 1.0 on plane 5 / 11
+  if (cell.HasBlockedNeighborsEast()) {
+    view[{offset + 5, tensorPosition.x, tensorPosition.y}] = 1.0;
   }
 }
 
@@ -98,13 +103,14 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, kNumPlayers);
 
-  const int kPlaneOffset[2] = {0, 5};
+  const int kPlaneOffset[2] = {0, kNumPlanes/2};
   int size = board_.size();
 
-  // 2 x 5 planes of size boardSize x (boardSize-2):
+  // 2 x 6 planes of size boardSize x (boardSize-2):
   // each plane excludes the endlines of the opponent
-  // plane 0/5 is for the pegs
-  // plane 1..4 / 6..9 is for the links NNE, ENE, ESE, SSE, resp.
+  // plane 0/6 is for the pegs
+  // plane 1..4 / 7..10 is for the links NNE, ENE, ESE, SSE, resp.
+  // plane 5/11 is pegs that have blocked neighbors
 
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, true);

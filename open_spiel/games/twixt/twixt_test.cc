@@ -181,7 +181,6 @@ void TwixtLegalActionsTest() {
   SPIEL_CHECK_EQ(40, state->LegalActions().size());
 
   state->ApplyAction(48);  // player 0: xg8 wins
-
   SPIEL_CHECK_TRUE(state->IsTerminal());
   SPIEL_CHECK_EQ(1.0, state->PlayerReturn(0));
   SPIEL_CHECK_EQ(-1.0, state->PlayerReturn(1));

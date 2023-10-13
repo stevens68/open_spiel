@@ -41,9 +41,9 @@ struct {
   std::vector<Link> blocking_links;
 } typedef LinkDescriptor;
 
-// Tensor has 2 * 5 planes of size bordSize * (boardSize-2)
+// Tensor has 2 * 6 planes of size bordSize * (boardSize-2)
 // see ObservationTensor
-const int kNumPlanes = 10;
+const int kNumPlanes = 12;
 
 enum Result { kOpen, kRedWin, kBlueWin, kDraw };
 
@@ -108,13 +108,13 @@ class Board {
   void UndoFirstMove();
 
   void InitializeCells(bool);
-  void InitializeCandidates(Position, Cell&, bool);
+  void InitializeNeighbors(Position, Cell&, bool);
   void InitializeBlockerMap(Position, int, const LinkDescriptor&);
 
   void InitializeLegalActions();
 
   void SetPegAndLinks(Player, Position);
-  void ExploreLocalGraph(Player, Cell&, enum Border);
+  void ExploreLocalGraph(Player, Cell&, enum Border,  std::set<Cell*>);
 
   void AppendLinkChar(std::string&, Position, enum Compass, std::string) const;
   void AppendColorString(std::string&, std::string, std::string) const;
