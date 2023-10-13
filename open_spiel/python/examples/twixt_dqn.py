@@ -128,7 +128,7 @@ def main(_):
           agent.step(time_step)
 
       r_mean = eval_against_random_bots(env, agents, random_agents, 1000)
-      logging.info("[%s] Mean episode rewards %s", ep + 1, r_mean)
+      logging.info("[%s] Mean episode rewards %s", ep + 1, r_mean, sum(r_mean))
 
 
 if __name__ == "__main__":

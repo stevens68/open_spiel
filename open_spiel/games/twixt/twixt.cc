@@ -79,10 +79,7 @@ void TwixTState::SetPegAndLinksOnTensor(absl::Span<float> values,
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, false);
   Position tensorPosition = board_.GetTensorPosition(position, turn);
-
-  // set peg on plane 0 / 5
-  view[{offset + 0, tensorPosition.x, tensorPosition.y}] = 1.0;
-
+  
   if (cell.HasLinks()) {
     for (int dir = 0; dir < 4; dir++) {
       if (cell.HasLink(dir)) {
@@ -90,6 +87,9 @@ void TwixTState::SetPegAndLinksOnTensor(absl::Span<float> values,
         view[{offset + 1 + dir, tensorPosition.x, tensorPosition.y}] = 1.0;
       }
     }
+  } else {
+    // set peg on plane 0 / 5
+    view[{offset + 0, tensorPosition.x, tensorPosition.y}] = 1.0;
   }
 }
 
