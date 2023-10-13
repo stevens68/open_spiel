@@ -41,9 +41,9 @@ struct {
   std::vector<Link> blocking_links;
 } typedef LinkDescriptor;
 
-// Tensor has 2 * 3 planes of size bordSize * (boardSize-2)
+// Tensor has 2 * 5 planes of size bordSize * (boardSize-2)
 // see ObservationTensor
-const int kNumPlanes = 12;
+const int kNumPlanes = 10;
 
 enum Result { kOpen, kRedWin, kBlueWin, kDraw };
 

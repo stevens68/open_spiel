@@ -605,10 +605,11 @@ void Board::ExploreLocalGraph(Player player, Cell& cell, enum Border border) {
 }
 
 Position Board::GetTensorPosition(Position position, bool turn) const {
+  // we flip x/y and top/bottom for better readability in playthrough output
   if (turn) {
-    return {size() - position.y - 2, position.x};
+    return {size() - position.x - 1, size() - position.y - 2};
   } else {
-    return {position.x - 1, position.y};
+    return {size() - position.y - 1, position.x - 1};
   }
 }
 

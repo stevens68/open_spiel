@@ -76,27 +76,20 @@ std::string TwixTState::ActionToString(open_spiel::Player player,
 void TwixTState::SetPegAndLinksOnTensor(absl::Span<float> values,
                                         const Cell& cell, int offset, bool turn,
                                         Position position) const {
-  // we flip col/row here for better output in playthrough file
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, false);
   Position tensorPosition = board_.GetTensorPosition(position, turn);
 
-  if (!cell.HasLinks()) {
-    // peg has no links -> plane 0 / 6
-    view[{offset + 0, tensorPosition.y, tensorPosition.x}] = 1.0;
-    return;
-  }
+  // set peg on plane 0 / 5
+  view[{offset + 0, tensorPosition.x, tensorPosition.y}] = 1.0;
 
-  for (int dir = 0; dir <= 4; dir++) {
-    if (cell.HasLink(dir)) {
-      // peg has link in direction dir -> plane 1..4 / 7..10
-      view[{offset + 1 + dir, tensorPosition.y, tensorPosition.x}] = 1.0;
+  if (cell.HasLinks()) {
+    for (int dir = 0; dir < 4; dir++) {
+      if (cell.HasLink(dir)) {
+        // peg has link in direction dir -> plane 1..4 / 7..10
+        view[{offset + 1 + dir, tensorPosition.x, tensorPosition.y}] = 1.0;
+      }
     }
-  }
-
-  if (cell.HasBlockedNeighbors()) {
-    // peg has blocked links -> plane 5 / 11
-    view[{offset + 5, tensorPosition.y, tensorPosition.x}] = 1.0;
   }
 }
 
@@ -105,14 +98,13 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, kNumPlayers);
 
-  const int kPlaneOffset[2] = {0, 6};
+  const int kPlaneOffset[2] = {0, 5};
   int size = board_.size();
 
-  // 2 x 6 planes of size boardSize x (boardSize-2):
+  // 2 x 5 planes of size boardSize x (boardSize-2):
   // each plane excludes the endlines of the opponent
-  // plane 0/6 is for the unlinked pegs
-  // plane 1..4 / 7..10 is for the links NNE, ENE, ESE, SSE, resp.
-  // plane 5/11 is for blocked links
+  // plane 0/5 is for the pegs
+  // plane 1..4 / 6..9 is for the links NNE, ENE, ESE, SSE, resp.
 
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, true);
