@@ -28,10 +28,6 @@ void BasicTwixTTests() {
   testing::RandomSimTest(*LoadGame("twixt"), 100);
 }
 
-}  // namespace
-}  // namespace twixt
-}  // namespace open_spiel
-
 class TwixtTestException : public std::exception {
  public:
     std::string error_msg_ = "";
@@ -210,3 +206,7 @@ int main(int argc, char **argv) {
   TwixtLegalActionsTest();
   TwixtDrawTest();
 }
+
+}  // namespace
+}  // namespace twixt
+}  // namespace open_spiel
