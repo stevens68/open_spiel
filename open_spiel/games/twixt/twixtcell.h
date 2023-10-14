@@ -79,7 +79,9 @@ class Cell {
 
   void SetBlockedNeighbor(int dir) { blocked_neighbors_ |= (1UL << dir); }
   bool HasBlockedNeighbors() const { return blocked_neighbors_ > 0; }
-  bool HasBlockedNeighborsEast() const { return blocked_neighbors_ & 15UL > 0; }
+  bool HasBlockedNeighborsEast() const {
+    return (blocked_neighbors_ & 15UL) > 0;
+  }
 
   Position GetNeighbor(int dir) const { return neighbors_[dir]; }
   void SetNeighbor(int dir, Position c) { neighbors_[dir] = c; }
