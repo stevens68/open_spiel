@@ -29,10 +29,6 @@ inline int OppDir(int direction) {
   return (direction + kMaxCompass / 2) % kMaxCompass;
 }
 
-inline int OppCand(int candidate) {
-  return candidate < 16 ? candidate <<= 4 : candidate >>= 4;
-}
-
 inline std::string PositionToString(Position position) {
   return "[" + std::to_string(position.x) + "," +
                std::to_string(position.y) + "]";
@@ -203,13 +199,6 @@ void Board::UpdateResult(Player player, Position position) {
     return;
   }
 
-  // check if we are early in the game...
-  if (move_counter() < size() - 1) {
-    // e.g. less than 5 moves played on a 6x6 board
-    // => no win or draw possible, no need to update
-    return;
-  }
-
   // check if opponent (player to turn next) has any legal moves left
   if (!HasLegalActions(1 - player)) {
     set_result(kDraw);
@@ -240,48 +229,48 @@ void Board::InitializeCells(bool init_blocker_map) {
         } else if (y == size() - 1) {
           cell.SetLinkedToBorder(kRedPlayer, kEnd);
         }
-
-        InitializeCandidates(position, cell, init_blocker_map);
+        InitializeNeighbors(position, cell, init_blocker_map);
       }
     }
   }
 }
 
-void Board::InitializeCandidates(Position position, Cell& cell,
+void Board::InitializeNeighbors(Position position, Cell& cell,
     bool init_blocker_map) {
   for (int dir = 0; dir < kMaxCompass; dir++) {
     const LinkDescriptor& ld = kLinkDescriptorTable[dir];
-    Position target_move = position + ld.offsets;
-    if (!PositionIsOffBoard(target_move)) {
+    Position target_position = position + ld.offsets;
+    if (!PositionIsOffBoard(target_position)) {
       if (init_blocker_map) {
         InitializeBlockerMap(position, dir, ld);
       }
-      cell.SetNeighbor(dir, target_move);
-      Cell target_cell = GetCell(target_move);
-      if (!(PositionIsOnBorder(kRedPlayer, position) &&
-            PositionIsOnBorder(kBluePlayer, target_move)) &&
-          !(PositionIsOnBorder(kBluePlayer, position) &&
-            PositionIsOnBorder(kRedPlayer, target_move))) {
-        cell.SetCandidate(kRedPlayer, dir);
-        cell.SetCandidate(kBluePlayer, dir);
-      }
+      cell.SetNeighbor(dir, target_position);
     }
   }
 }
 
 void Board::InitializeLegalActions() {
-  int num_distinct_legalActions = size() * (size() - 2);
+  int num_legal_actions_per_player = size() * (size() - 2);
 
-  legal_actions_[kRedPlayer].resize(num_distinct_legalActions);
-  legal_actions_[kBluePlayer].resize(num_distinct_legalActions);
+  for (Player p=0; p < kNumPlayers; p++) {
+    legal_actions_[p].resize(num_legal_actions_per_player);
+    legal_actions_[p].clear();
+  }
 
-  for (int player = kRedPlayer; player < kNumPlayers; player++) {
-    std::vector<Action>& la = legal_actions_[player];
-    la.clear();
-    la.reserve(num_distinct_legalActions);
-
-    for (Action a = 0; a < num_distinct_legalActions; a++) {
-      la.push_back(a);
+  for (int col=0; col < size(); col++) {
+    for (int row=0; row < size(); row++) {
+      Position pos = {col, row};
+      Action action = col*size()+row;
+      if (PositionIsOffBoard(pos)) {
+        continue;
+      } else if (PositionIsOnBorder(kRedPlayer, pos)) {
+        legal_actions_[kRedPlayer].push_back(action);
+      } else if (PositionIsOnBorder(kBluePlayer, pos)) {
+        legal_actions_[kBluePlayer].push_back(action);
+      } else {
+        legal_actions_[kRedPlayer].push_back(action);
+        legal_actions_[kBluePlayer].push_back(action);
+      }
     }
   }
 }
@@ -461,13 +450,12 @@ void Board::AppendAfterRow(std::string& s, Position position) const {
 void Board::UndoFirstMove() {
   Cell& cell = GetCell(move_one());
   cell.set_color(kEmpty);
-  // initialize Candidates but not static blockerMap
-  InitializeCandidates(move_one(), cell, false);
+  InitializeNeighbors(move_one(), cell, false);
   InitializeLegalActions();
 }
 
 void Board::ApplyAction(Player player, Action action) {
-  Position position = ActionToPosition(player, action);
+  Position position = ActionToPosition(action);
 
   if (move_counter() == 1) {
     // it's the second position
@@ -481,7 +469,7 @@ void Board::ApplyAction(Player player, Action action) {
       // turn position 90° clockwise:
       // [2,3]->[3,5]; [1,4]->[4,6]; [3,2]->[2,4]
       int x = position.y;
-      int y = size() - position.x - 1;  
+      int y = size() - position.x - 1;
       position = {x, y};
 
     } else {
@@ -506,7 +494,7 @@ void Board::ApplyAction(Player player, Action action) {
 
   IncMoveCounter();
 
-  // Update the predicted result and update mCurrentPlayer...
+  // Update the predicted result and update current_player_...
   UpdateResult(player, position);
 }
 
@@ -521,18 +509,12 @@ void Board::SetPegAndLinks(Player player, Position position) {
 
   int dir = 0;
   bool newLinks = false;
-  // check all candidates (neigbors that are empty or have same color)
-  for (int cand = 1, dir = 0; cand <= cell.GetCandidates(player);
-       cand <<= 1, dir++) {
-    if (cell.IsCandidate(player, cand)) {
-      Position n = cell.GetNeighbor(dir);
-
-      Cell& target_cell = GetCell(cell.GetNeighbor(dir));
-      if (target_cell.color() == kEmpty) {
-        // pCell is not a candidate for pTarGetCell anymore
-        // (from opponent's perspective)
-        target_cell.DeleteCandidate(1 - player, OppCand(cand));
-      } else {
+  // check all neigbors that are empty or have same color)
+  for (dir = 0; dir < kMaxCompass; dir++) {
+    Position target_position = position + kLinkDescriptorTable[dir].offsets;
+    if (!PositionIsOffBoard(target_position)) {
+      Cell& target_cell = GetCell(target_position);
+      if (target_cell.color() == cell.color()) {
         // check if there are blocking links before setting link
         const std::set<Link>& blockers =
           BlockerMap::GetBlockers((Link){position, dir});
@@ -565,81 +547,61 @@ void Board::SetPegAndLinks(Player player, Position position) {
         } else {
           // we store the fact that these two pegs of the same color cannot be
           // linked this info is used for the ObservationTensor
-          cell.SetBlockedNeighbor(cand);
-          target_cell.SetBlockedNeighbor(OppCand(cand));
+          cell.SetBlockedNeighbor(dir);
+          target_cell.SetBlockedNeighbor(OppDir(dir));
         }
-      }  // is not empty
-    }  // is candidate
-  }  // candidate range
+      }  // same color
+    }  // is on board
+  }  // range of directions
 
   // check if we need to explore further
   if (newLinks) {
+    std::set<Cell*> visited = {};
     if (cell.IsLinkedToBorder(player, kStart) && linked_to_neutral) {
       // case: new cell is linked to START and linked to neutral cells
       // => explore neutral graph and add all its cells to START
-      ExploreLocalGraph(player, cell, kStart);
+      ExploreLocalGraph(player, cell, kStart, visited);
     }
     if (cell.IsLinkedToBorder(player, kEnd) && linked_to_neutral) {
       // case: new cell is linked to END and linked to neutral cells
       // => explore neutral graph and add all its cells to END
-      ExploreLocalGraph(player, cell, kEnd);
+      ExploreLocalGraph(player, cell, kEnd, visited);
     }
   }
 }
 
-void Board::ExploreLocalGraph(Player player, Cell& cell, enum Border border) {
-  int dir = 0;
-  for (int link = 1, dir = 0; link <= cell.links(); link <<= 1, dir++) {
-    if (cell.IsLinked(link)) {
+void Board::ExploreLocalGraph(Player player, Cell& cell,
+  enum Border border, std::set<Cell*> visited) {
+  visited.insert(&cell);
+  for (int dir = 0; dir < kMaxCompass; dir++) {
+    if (cell.HasLink(dir)) {
       Cell& target_cell = GetCell(cell.GetNeighbor(dir));
-      if (!target_cell.IsLinkedToBorder(player, border)) {
-        // linked neighbor is NOT yet member of PegSet
+      if ((visited.find(&target_cell) == visited.end())
+        && !target_cell.IsLinkedToBorder(player, border)) {
+        // linked neighbor has not been visited yet
         // => add it and explore
         target_cell.SetLinkedToBorder(player, border);
-        ExploreLocalGraph(player, target_cell, border);
+        ExploreLocalGraph(player, target_cell, border, visited);
       }
     }
   }
 }
 
-Position Board::GetTensorPosition(Position position, int turn) const {
-  switch (turn) {
-  case 0:
-    return {position.x - 1, position.y};
-    break;
-  case 90:
-    return {size() - position.y - 2, position.x};
-    break;
-  case 180:
-    return {size() - position.x - 2, size() - position.y - 1};
-    break;
-  default:
-    SpielFatalError("invalid turn: " + std::to_string(turn) +
-                    "; should be 0, 90, 180");
+Position Board::GetTensorPosition(Position position, bool turn) const {
+  // we flip x/y and top/bottom for better readability in playthrough output
+  if (turn) {
+    return {size() - position.x - 1, size() - position.y - 2};
+  } else {
+    return {size() - position.y - 1, position.x - 1};
   }
 }
 
-Position Board::ActionToPosition(open_spiel::Player player,
-    Action action) const {
-  Position position;
-  if (player == kRedPlayer) {
-    position.x = action / size_ + 1;  // col 2
-    position.y = action % size_;      // row 3
-  } else {
-    position.x = action % size_;                 // col 2
-    position.y = size_ - (action / size_) - 2;  // row 3
-  }
-  return position;
+Position Board::ActionToPosition(Action action) const {
+  return { static_cast<int>(action) / size_, static_cast<int>(action) % size_};
 }
 
-Action Board::PositionToAction(Player player, Position position) const {
-  Action action;
-  if (player == kRedPlayer) {
-    action = (position.x - 1) * size_ + position.y;
-  } else {
-    action = (size_ - position.y - 2) * size_ + position.x;
-  }
-  return action;
+Action Board::PositionToAction(Position position) const {
+  return position.x * size() + position.y;
 }
 
 Action Board::StringToAction(std::string s) const {
@@ -647,7 +609,7 @@ Action Board::StringToAction(std::string s) const {
   Position position;
   position.x = static_cast<int>(s.at(1)) - static_cast<int>('a');
   position.y = size() - (static_cast<int>(s.at(2)) - static_cast<int>('0'));
-  return PositionToAction(player, position);
+  return PositionToAction(position);
 }
 
 bool Board::PositionIsOnBorder(Player player, Position position) const {
@@ -669,12 +631,12 @@ bool Board::PositionIsOffBoard(Position position) const {
 }
 
 void Board::RemoveLegalAction(Player player, Position position) {
-  Action action = PositionToAction(player, position);
-  std::vector<Action> *la = &legal_actions_[player];
+  Action action = PositionToAction(position);
+  std::vector<Action>& la = legal_actions_[player];
   std::vector<Action>::iterator it;
-  it = find(la->begin(), la->end(), action);
-  if (it != la->end())
-    la->erase(it);
+  it = find(la.begin(), la.end(), action);
+  if (it != la.end())
+    la.erase(it);
 }
 
 }  // namespace twixt

@@ -25,7 +25,7 @@ namespace testing = open_spiel::testing;
 void BasicTwixTTests() {
   testing::LoadGameTest("twixt");
   testing::NoChanceOutcomesTest(*LoadGame("twixt"));
-  //testing::RandomSimTest(*LoadGame("twixt"), 100);
+  testing::RandomSimTest(*LoadGame("twixt"), 100);
 }
 
 }  // namespace
@@ -35,11 +35,11 @@ void BasicTwixTTests() {
 class TwixtTestException : public std::exception {
  public:
     std::string error_msg_ = "";
-    char * what () {
+    char * what() {
         return &error_msg_[0];
     }
 
-    TwixtTestException(const std::string& error_msg) {
+    explicit TwixtTestException(const std::string& error_msg) {
       error_msg_ = error_msg;
     }
 };
@@ -55,7 +55,7 @@ void TwixtParameterTest() {
   std::string game_name = "twixt";
   open_spiel::GameParameters params;
   std::shared_ptr<const open_spiel::Game> game;
-  // ok: ansi_color_output=true 
+  // ok: ansi_color_output=true
   params.insert({"ansi_color_output", open_spiel::GameParameter(true, false)});
   game = open_spiel::LoadGame(game_name, params);
   params.clear();
@@ -89,20 +89,21 @@ void TwixtParameterTest() {
   try {
     game = open_spiel::LoadGame(game_name, params);
   } catch (TwixtTestException e) {
-    std::string expected = "Unknown parameter 'bad_param'. Available parameters are: " \
-      "ansi_color_output, board_size";
+    std::string expected = "Unknown parameter 'bad_param'. " \
+      "Available parameters are: ansi_color_output, board_size";
     SPIEL_CHECK_EQ(expected, std::string(e.what()));
   }
 }
 
-bool IsLegalAction(const std::vector<open_spiel::Action> v, 
+bool IsLegalAction(const std::vector<open_spiel::Action> v,
     open_spiel::Action action) {
   return std::find(v.begin(), v.end(), action) != v.end();
 }
 
-void PrintLegalActions(const std::vector<open_spiel::Action> v, open_spiel::Player p) {
+void PrintLegalActions(const std::vector<open_spiel::Action> v,
+    open_spiel::Player p) {
   std::cout << p << ": ";
-  for(int i=0; i < v.size(); i++) {
+  for (int i = 0; i < v.size(); i++) {
     std::cout << v.at(i) << ' ';
   }
   std::cout << std::endl;
@@ -111,27 +112,26 @@ void PrintLegalActions(const std::vector<open_spiel::Action> v, open_spiel::Play
 void TwixtSwapTest() {
   std::shared_ptr<const open_spiel::Game> game = open_spiel::LoadGame("twixt");
   auto state = game->NewInitialState();
-  // player 0 plays action 11: [2,3] = c5
+  // player 0 plays action 19: [2,3] = c5
   SPIEL_CHECK_EQ(0, state->CurrentPlayer());
   SPIEL_CHECK_TRUE(IsLegalAction(state->LegalActions(), 11));
-  state->ApplyAction(11); 
+  state->ApplyAction(19);
 
-  // player 1 plays action 26: [2,3] = c5 (SWAP rule)
+  // player 1 plays action 19: [2,3] = c5 (SWAP rule)
   SPIEL_CHECK_EQ(1, state->CurrentPlayer());
-  state->ApplyAction(26);
+  state->ApplyAction(19);
 
   // => [3,5] od3 replaces [2,3] xc5; c5 is empty again and d3 is occupied
-  SPIEL_CHECK_TRUE(IsLegalAction(state->LegalActions(), 11));   // c5
-  SPIEL_CHECK_FALSE(IsLegalAction(state->LegalActions(), 21));  // d3
+  SPIEL_CHECK_TRUE(IsLegalAction(state->LegalActions(), 19));   // c5
+  SPIEL_CHECK_FALSE(IsLegalAction(state->LegalActions(), 29));  // d3
 
-  // player 0 plays action 28: [4,4] = e4
+  // player 0 plays action 36: [4,4] = e4
   SPIEL_CHECK_EQ(0, state->CurrentPlayer());
-  state->ApplyAction(28);
+  state->ApplyAction(36);
 
-  SPIEL_CHECK_TRUE(IsLegalAction(state->LegalActions(), 26));   // c5
-  SPIEL_CHECK_FALSE(IsLegalAction(state->LegalActions(), 11));  // d3
-  SPIEL_CHECK_FALSE(IsLegalAction(state->LegalActions(), 20));  // e4
-
+  SPIEL_CHECK_TRUE(IsLegalAction(state->LegalActions(), 19));   // c5
+  SPIEL_CHECK_FALSE(IsLegalAction(state->LegalActions(), 29));  // d3
+  SPIEL_CHECK_FALSE(IsLegalAction(state->LegalActions(), 36));  // e4
 }
 
 void TwixtLegalActionsTest() {
@@ -141,59 +141,59 @@ void TwixtLegalActionsTest() {
   // 48*/48 legal actions
   SPIEL_CHECK_EQ(48, state->LegalActions().size());
 
-  state->ApplyAction(13);   // player 0: xc3
-  // 47/48* legal actions; player 1 could play c3 to swap 
+  state->ApplyAction(21);   // player 0: xc3
+  // 47/48* legal actions; player 1 could play c3 to swap
   SPIEL_CHECK_EQ(48, state->LegalActions().size());
 
-  state->ApplyAction(4);  // player 1: oe2
+  state->ApplyAction(38);  // player 1: oe2
   // 46*/46 legal actions; player 1 did not swap
   SPIEL_CHECK_EQ(46, state->LegalActions().size());
 
-  state->ApplyAction(7);  // player 0: xb1
+  state->ApplyAction(15);  // player 0: xb1
   // 45/46* legal actions; player 0 played on his end line
   SPIEL_CHECK_EQ(46, state->LegalActions().size());
 
-  state->ApplyAction(25);  // player 1: ob5
+  state->ApplyAction(11);  // player 1: ob5
   // 44*/45 legal actions
   SPIEL_CHECK_EQ(44, state->LegalActions().size());
 
   try {
-    state->ApplyAction(3);   // player 0: xb5 NOT LEGAL!
+    state->ApplyAction(11);   // player 0: xb5 NOT LEGAL!
   } catch (TwixtTestException e) {
-    std::string expected = "Not a legal action: 3";
+    std::string expected = "Not a legal action: 11";
     SPIEL_CHECK_EQ(expected, std::string(e.what()));
   }
 
-  state->ApplyAction(19);  // player 0: xd5 
+  state->ApplyAction(27);  // player 0: xd5
   // 43/44* legal actions
   SPIEL_CHECK_EQ(44, state->LegalActions().size());
 
-  state->ApplyAction(42);  // player 1: oc7
+  state->ApplyAction(17);  // player 1: oc7
   // 42*/43 legal actions
   SPIEL_CHECK_EQ(42, state->LegalActions().size());
 
-  state->ApplyAction(34);  // player 0: xf6
+  state->ApplyAction(42);  // player 0: xf6
   // 41/42* legal actions
   SPIEL_CHECK_EQ(42, state->LegalActions().size());
 
-  state->ApplyAction(13);  // player 1: of3
+  state->ApplyAction(45);  // player 1: of3
   // 40*/41 legal actions
   SPIEL_CHECK_EQ(40, state->LegalActions().size());
 
-  state->ApplyAction(40);  // player 0: xg8 wins
+  state->ApplyAction(48);  // player 0: xg8 wins
   SPIEL_CHECK_TRUE(state->IsTerminal());
   SPIEL_CHECK_EQ(1.0, state->PlayerReturn(0));
   SPIEL_CHECK_EQ(-1.0, state->PlayerReturn(1));
 }
 
-
 void TwixtDrawTest() {
   open_spiel::GameParameters params;
   params.insert({"board_size", open_spiel::GameParameter(5, false)});
-  std::shared_ptr<const open_spiel::Game> game = open_spiel::LoadGame("twixt", params);
+  std::shared_ptr<const open_spiel::Game> game =
+    open_spiel::LoadGame("twixt", params);
   auto state = game->NewInitialState();
 
-  while (! state->IsTerminal()) {
+  while (!state->IsTerminal()) {
     // this pattern will produce a draw on a 5x5 board
     state->ApplyAction(state->LegalActions().at(0));
     state->ApplyAction(state->LegalActions().at(1));
@@ -202,8 +202,8 @@ void TwixtDrawTest() {
   SPIEL_CHECK_EQ(0.0, state->PlayerReturn(1));
 }
 
-int main(int argc, char **argv) { 
-  open_spiel::twixt::BasicTwixTTests(); 
+int main(int argc, char **argv) {
+  open_spiel::twixt::BasicTwixTTests();
   open_spiel::SetErrorHandler(TwixtTestErrorHandler);
   TwixtParameterTest();
   TwixtSwapTest();

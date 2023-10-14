@@ -74,27 +74,14 @@ class Cell {
   void set_link(int dir) { links_ |= (1UL << dir); }
   int links() const { return links_; }
 
-  bool IsLinked(int cand) const { return links_ & cand; }
   bool HasLink(int dir) const { return links_ & (1UL << dir); }
   bool HasLinks() const { return links_ > 0; }
 
-  int GetCandidates(int player) { return candidates_[player]; }
-  bool IsCandidate(int player, int cand) const {
-    return candidates_[player] & cand;
-  }
-  void SetCandidate(int player, int dir) {
-    candidates_[player] |= (1UL << dir);
-  }
-  void DeleteCandidate(int player, int cand) {
-    candidates_[player] &= ~(cand);
-  }
-  void DeleteCandidate(int dir) {
-    candidates_[kRedPlayer] &= ~(1UL << dir);
-    candidates_[kBluePlayer] &= ~(1UL << dir);
-  }
-
   void SetBlockedNeighbor(int dir) { blocked_neighbors_ |= (1UL << dir); }
   bool HasBlockedNeighbors() const { return blocked_neighbors_ > 0; }
+  bool HasBlockedNeighborsEast() const {
+    return (blocked_neighbors_ & 15UL) > 0;
+  }
 
   Position GetNeighbor(int dir) const { return neighbors_[dir]; }
   void SetNeighbor(int dir, Position c) { neighbors_[dir] = c; }
@@ -111,10 +98,7 @@ class Cell {
   int color_;
   // bitmap of outgoing links from this cell
   int links_ = 0;
-  // bitmap of candidates of a player
-  // (candidates are neighbors that are empty or have same color)
-  int candidates_[kNumPlayers] = {0, 0};
-  // bitmap of neighbors of same color that are blocked
+  // bitmap of neighbors same color that are blocked
   int blocked_neighbors_ = 0;
   // array of neighbor tuples
   // (cells in knight's move distance that are on board)

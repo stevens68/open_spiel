@@ -23,6 +23,7 @@
 
 #include "open_spiel/spiel_utils.h"
 #include "open_spiel/games/twixt/twixt.h"
+#include "open_spiel/games/twixt/twixtcell.h"
 #include "open_spiel/games/twixt/twixtboard.h"
 #include "open_spiel/utils/tensor_view.h"
 
@@ -60,12 +61,12 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 
 TwixTState::TwixTState(std::shared_ptr<const Game> game) : State(game) {
   const TwixTGame &parent_game = static_cast<const TwixTGame &>(*game);
-  board_ = Board(parent_game.GetBoardSize(), parent_game.GetAnsiColorOutput());
+  board_ = Board(parent_game.board_size(), parent_game.ansi_color_output());
 }
 
 std::string TwixTState::ActionToString(open_spiel::Player player,
                                        Action action) const {
-  Position position = board_.ActionToPosition(player, action);
+  Position position = board_.ActionToPosition(action);
   std::string s = (player == kRedPlayer) ? "x" : "o";
   s += static_cast<int>('a') + position.x;
   s.append(std::to_string(board_.size() - position.y));
@@ -73,24 +74,27 @@ std::string TwixTState::ActionToString(open_spiel::Player player,
 }
 
 void TwixTState::SetPegAndLinksOnTensor(absl::Span<float> values,
-                                        const Cell& cell, int offset, int turn,
+                                        const Cell& cell, int offset, bool turn,
                                         Position position) const {
-  // we flip col/row here for better output in playthrough file
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, false);
   Position tensorPosition = board_.GetTensorPosition(position, turn);
 
-  if (!cell.HasLinks()) {
-    // peg has no links -> use plane 0
-    view[{0 + offset, tensorPosition.y, tensorPosition.x}] = 1.0;
+  if (cell.HasLinks()) {
+    for (int dir = 0; dir < 4; dir++) {
+      if (cell.HasLink(dir)) {
+        // peg has link in direction dir: set 1.0 on plane 1..4 / 8..11
+        view[{offset + 1 + dir, tensorPosition.x, tensorPosition.y}] = 1.0;
+      }
+    }
   } else {
-    // peg has links -> use plane 1
-    view[{1 + offset, tensorPosition.y, tensorPosition.x}] = 1.0;
+    // peg has no links: set 1.0 on plane 0 / 6
+    view[{offset + 0, tensorPosition.x, tensorPosition.y}] = 1.0;
   }
 
-  if (cell.HasBlockedNeighbors()) {
-    // peg has blocked neighbors on plane 1 -> use also plane 2
-    view[{2 + offset, tensorPosition.y, tensorPosition.x}] = 1.0;
+  // peg has blocked neighbors: set 1.0 on plane 5 / 11
+  if (cell.HasBlockedNeighborsEast()) {
+    view[{offset + 5, tensorPosition.x, tensorPosition.y}] = 1.0;
   }
 }
 
@@ -99,17 +103,15 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, kNumPlayers);
 
-  const int kOpponentPlaneOffset = 3;
-  const int kCurPlayerPlaneOffset = 0;
+  const int kPlaneOffset[2] = {0, kNumPlanes/2};
   int size = board_.size();
 
-  // 6 planes of size boardSize x (boardSize-2):
+  // 2 x 6 planes of size boardSize x (boardSize-2):
   // each plane excludes the endlines of the opponent
-  // planes 0 (3) are for the unlinked pegs of the current (opponent) player
-  // planes 1 (4) are for the linked pegs of the current (opponent) player
-  // planes 2 (5) are for the blocked pegs on plane 1 (4)
+  // plane 0/6 is for the pegs
+  // plane 1..4 / 7..10 is for the links NNE, ENE, ESE, SSE, resp.
+  // plane 5/11 is pegs that have blocked neighbors
 
-  // here we initialize Tensor with zeros for each state
   TensorView<3> view(
       values, {kNumPlanes, board_.size(), board_.size() - 2}, true);
 
@@ -118,27 +120,12 @@ void TwixTState::ObservationTensor(open_spiel::Player player,
       Position position = {c, r};
       const Cell& cell = board_.GetConstCell(position);
       int color = cell.color();
-      if (player == kRedPlayer) {
-        if (color == kRedColor) {
-          // no turn
-          SetPegAndLinksOnTensor(values, cell, kCurPlayerPlaneOffset,
-            0, position);
-        } else if (color == kBlueColor) {
-          // 90 degr turn (blue player sits left side of red player)
-          SetPegAndLinksOnTensor(values, cell, kOpponentPlaneOffset,
-            90, position);
-        }
-      } else if (player == kBluePlayer) {
-        if (color == kBlueColor) {
-          // 90 degr turn
-          SetPegAndLinksOnTensor(values, cell, kCurPlayerPlaneOffset,
-            90, position);
-        } else if (color == kRedColor) {
-          // 90+90 degr turn (red player sits left of blue player)
-          // setPegAndLinksOnTensor(values, cell, 5, size-c-2, size-r-1);
-          SetPegAndLinksOnTensor(values, cell, kOpponentPlaneOffset,
-            180, position);
-        }
+      if (color == kRedColor) {
+        // no turn
+        SetPegAndLinksOnTensor(values, cell, kPlaneOffset[0], false, position);
+      } else if (color == kBlueColor) {
+        // 90 degr turn
+        SetPegAndLinksOnTensor(values, cell, kPlaneOffset[1], true, position);
       }
     }
   }
